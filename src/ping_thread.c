@@ -55,6 +55,7 @@
 #include "firewall.h"
 #include "gateway.h"
 #include "simple_http.h"
+#include "client_list.h"
 
 static void ping(void);
 
@@ -104,6 +105,8 @@ ping(void)
     t_auth_serv *auth_server = NULL;
     auth_server = get_auth_server();
     static int authdown = 0;
+    t_client *client_list = NULL;
+    unsigned int clients_count = 0;
 
     debug(LOG_DEBUG, "Entering ping()");
     memset(request, 0, sizeof(request));
@@ -154,10 +157,20 @@ ping(void)
     }
 
     /*
+     * Populate clients_count
+     */
+    pthread_mutex_lock(&client_list_mutex);
+    for (client_list = client_get_first_client();
+         client_list != NULL; client_list = client_list->next) {
+      clients_count++;
+    }
+    pthread_mutex_unlock(&client_list_mutex);
+
+    /*
      * Prep & send request
      */
     snprintf(request, sizeof(request) - 1,
-             "GET %s%sgw_id=%s&sys_uptime=%lu&sys_memfree=%u&sys_load=%.2f&wifidog_uptime=%lu HTTP/1.0\r\n"
+             "GET %s%sgw_id=%s&sys_uptime=%lu&sys_memfree=%u&sys_load=%.2f&wifidog_uptime=%lu&clients_count=%u HTTP/1.0\r\n"
              "User-Agent: WiFiDog %s\r\n"
              "Host: %s\r\n"
              "\r\n",
@@ -168,6 +181,7 @@ ping(void)
              sys_memfree,
              sys_load,
              (long unsigned int)((long unsigned int)time(NULL) - (long unsigned int)started_time),
+             clients_count,
              VERSION, auth_server->authserv_hostname);
 
     char *res;
